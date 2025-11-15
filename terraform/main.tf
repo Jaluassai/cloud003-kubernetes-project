@@ -1,11 +1,20 @@
 resource "proxmox_virtual_environment_vm" "ubuntu_vm" {
-  name      = "test-ubuntu"
+  count = 3
+  name      = "test-ubuntu-${count.index + 1}"
   node_name = "Hades01"
 
   stop_on_destroy = true
 
   initialization {
     user_account {
+      username = var.basic_account
+      password = var.secret_password
+    }
+
+    ip_config {
+      ipv4 {
+        address = "dhcp"
+      }
     }
   }
 
@@ -26,6 +35,10 @@ resource "proxmox_virtual_environment_vm" "ubuntu_vm" {
 
   memory {
     dedicated = 1024
+  }
+
+  network_device {
+    bridge = "vmbr0"
   }
 }
 

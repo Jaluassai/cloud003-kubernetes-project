@@ -27,3 +27,14 @@ variable PROXMOX_VE_PASSWORD {
     type = string
     sensitive = true
 }
+
+variable "basic_account" {
+  description = "Username for the VM user"
+  type        = string
+}
+
+variable "secret_password" {
+  description = "Password for the VM user"
+  type        = string
+  sensitive   = true
+}
