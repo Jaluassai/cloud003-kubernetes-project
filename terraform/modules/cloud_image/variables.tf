@@ -1,5 +1,6 @@
 variable "node_name" {
   type = string
+  default = "Hades01"
 }
 
 variable "url" {
