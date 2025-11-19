@@ -1,6 +1,5 @@
 module "cloud_image" {
   source    = "../../modules/cloud_image"
-  node_name = "Hades01"
 }
 
 module "vms" {
@@ -8,12 +7,12 @@ module "vms" {
 
   environment     = "hera"
   vm_count        = 3
-  name_prefix     = "ubuntu"
+  name_prefix     = "master"
   node_name       = "Hades01"
-  starting_vm_id  = 3000
+  starting_vm_id  = 3100
 
   cloud_image_id  = module.cloud_image.image_id
-  disk_size       = 40
+  disk_size       = 20
   cpu_cores       = 4
   memory          = 4096
   network_bridge  = "vmbr0"
