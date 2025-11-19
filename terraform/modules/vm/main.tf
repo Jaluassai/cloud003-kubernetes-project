@@ -16,7 +16,10 @@ resource "proxmox_virtual_environment_vm" "vm" {
 
     ip_config {
       ipv4 {
-        address = "dhcp"
+        #address = var.ip_address
+        address = length(var.ip_addresses) > 0 ? var.ip_addresses[count.index] : "dhcp"
+        #gateway = length(var.ip_addresses) > 0 && var.gateway != null ? var.gateway : null
+        gateway = var.gw
       }
     }
   }

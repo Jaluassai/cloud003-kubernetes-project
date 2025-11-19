@@ -24,6 +24,30 @@ variable "starting_vm_id" {
   default     = 1000
 }
 
+# variable "ip_address" {
+#   description = "IP address"
+#   type = string
+#   default = "dhcp"
+# }
+
+variable "ip_addresses" {
+  description = "List of IP addresses for VMs"
+  type        = list(string)
+  default     = []  # Default Empty = DHCP
+}
+
+variable "gateway" {
+  description = "Gateway for static IP configuration"
+  type        = string
+  default     = null
+}
+
+variable "gw" {
+  default = null
+  type = string
+  description = "GW Config"
+  
+}
 variable "basic_account" {
   type = string
 }
