@@ -21,6 +21,7 @@ module "vms" {
 
   basic_account   = var.basic_account
   secret_password = var.secret_password
+  ssh_public_keys = var.ssh_public_keys
 }
 
 # Worker nodes
@@ -43,4 +44,5 @@ module "worker_vms" {
 
   basic_account   = var.basic_account
   secret_password = var.secret_password
+  ssh_public_keys = var.ssh_public_keys
 }

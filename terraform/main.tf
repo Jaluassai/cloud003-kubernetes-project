@@ -3,6 +3,7 @@ module "demeter" {
   
   basic_account   = var.basic_account
   secret_password = var.secret_password
+  ssh_public_keys = var.ssh_public_keys
 }
 
 module "hera" {
@@ -10,4 +11,5 @@ module "hera" {
   
   basic_account   = var.basic_account
   secret_password = var.secret_password
+  ssh_public_keys = var.ssh_public_keys
 }

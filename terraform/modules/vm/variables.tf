@@ -75,3 +75,9 @@ variable "memory" {
 variable "network_bridge" {
   type = string
 }
+
+variable "ssh_public_keys" {
+  description = "Map of SSH public keys with descriptive names"
+  type        = map(string)
+  default     = {}
+}

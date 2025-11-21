@@ -12,6 +12,7 @@ resource "proxmox_virtual_environment_vm" "vm" {
     user_account {
       username = var.basic_account
       password = var.secret_password
+      keys     = values(var.ssh_public_keys)
     }
 
     ip_config {

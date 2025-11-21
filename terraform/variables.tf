@@ -38,3 +38,9 @@ variable "secret_password" {
   type        = string
   sensitive   = true
 }
+
+variable "ssh_public_keys" {
+  description = "Map of SSH public keys"
+  type        = map(string)
+  default     = {}
+}
