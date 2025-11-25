@@ -50,6 +50,7 @@ variable "gw" {
 }
 variable "basic_account" {
   type = string
+  default = "ubuntu"
 }
 
 variable "secret_password" {
