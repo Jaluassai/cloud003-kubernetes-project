@@ -14,7 +14,7 @@ module "vms" {
   cloud_image_id  = module.cloud_image.image_id
   disk_size       = 20
   cpu_cores       = 4
-  memory          = 4096
+  memory          = 2048
   network_bridge  = "vmbr0"
   ip_addresses    = ["192.168.100.131/24", "192.168.100.132/24", "192.168.100.133/24"]
   gw              = "192.168.100.1"
