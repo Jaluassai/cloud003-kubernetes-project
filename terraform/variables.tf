@@ -43,4 +43,5 @@ variable "ssh_public_keys" {
   description = "Map of SSH public keys"
   type        = map(string)
   default     = {}
+  sensitive = true
 }
