@@ -7,6 +7,7 @@ resource "proxmox_virtual_environment_vm" "vm" {
   started    = true
 
   stop_on_destroy = true
+  timeout_create = 3600
 
   initialization {
     user_account {
