@@ -16,7 +16,8 @@ module "vms" {
   cpu_cores       = 4
   memory          = 2048
   network_bridge  = "vmbr0"
-
+  ip_addresses    = [ "192.168.100.141/24", "192.168.100.142/24","192.168.100.143/24" ]
+  gw              = "192.168.100.1"
   basic_account   = var.basic_account
   secret_password = var.secret_password
   ssh_public_keys = var.ssh_public_keys
@@ -24,6 +25,7 @@ module "vms" {
 # WORKER NODES
 module "worker_vms" {
   source = "../../modules/vm"
+  depends_on = [module.vms]
 
   environment     = "hera"
   vm_count        = 3
@@ -36,6 +38,8 @@ module "worker_vms" {
   cpu_cores       = 2
   memory          = 2048
   network_bridge  = "vmbr0"
+  ip_addresses    = [ "192.168.100.145/24", "192.168.100.146/24","192.168.100.147/24" ]
+  gw              = "192.168.100.1"
 
   basic_account   = var.basic_account
   secret_password = var.secret_password
