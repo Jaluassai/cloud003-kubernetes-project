@@ -1,0 +1,66 @@
+---
+- name: Configure all nodes
+  hosts: all
+  become: yes
+
+  pre_tasks:
+    - name: Unhold Kubernetes packages
+      command: "apt-mark unhold {{ item }}"
+      ignore_errors: yes
+      loop:
+        - kubelet
+        - kubeadm
+        - kubectl
+
+  roles:
+    - common
+
+  post_tasks:
+    - name: Hold Kubernetes packages after install
+      command: "apt-mark hold {{ item }}"
+      ignore_errors: yes
+      loop:
+        - kubelet
+        - kubeadm
+        - kubectl
+
+- name: Initialize first master
+  hosts: masters[0]
+  become: yes
+  roles:
+    - master
+
+- name: Join remaining control plane nodes
+  hosts: masters[1:]
+  become: yes
+  roles:
+    - join-master
+
+- name: Join worker nodes
+  hosts: workers
+  become: yes
+  roles:
+    - join-worker
+
+- name: Deploy CNI
+  hosts: masters[0]
+  become: yes
+  tasks:
+    - name: Install Flannel CNI
+      command: kubectl apply -f https://raw.githubusercontent.com/flannel-io/flannel/master/Documentation/kube-flannel.yml
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+
+# - name: Validate cluster
+#   hosts: masters[0]
+#   tasks:
+#     - name: Check node status
+#       become: yes
+#       command: kubectl get nodes
+#       register: node_status
+      
+#     - name: Display node status
+#       become: yes
+#       debug:
+#         var: node_status.stdout
+
