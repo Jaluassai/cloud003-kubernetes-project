@@ -1,0 +1,93 @@
+# ---
+# - name: Initialize Kubernetes cluster
+#   command: kubeadm init --control-plane-endpoint "{{ groups.masters[0] }}:6443" --pod-network-cidr=10.244.0.0/16 --upload-certs
+#   become: true
+#   register: init_output
+#   args:
+#     creates: /etc/kubernetes/admin.conf
+
+# - name: Create .kube directory for ubuntu user
+#   file:
+#     path: /home/ubuntu/.kube
+#     state: directory
+#     owner: ubuntu
+#     group: ubuntu
+
+# - name: Copy admin config to user directory
+#   copy:
+#     src: /etc/kubernetes/admin.conf
+#     dest: /home/ubuntu/.kube/config
+#     remote_src: yes
+#     owner: ubuntu
+#     group: ubuntu
+
+# - name: Get join command for workers
+#   command: kubeadm token create --print-join-command
+#   become: true
+#   register: join_command
+#   environment:
+#     KUBECONFIG: /etc/kubernetes/admin.conf
+
+# - name: Set join command fact for workers
+#   set_fact:
+#     worker_join_command: "{{ join_command.stdout }}"
+
+# - name: Get join command for control plane
+#   command: kubeadm init phase upload-certs --upload-certs
+#   register: certs_command
+#   environment:
+#     KUBECONFIG: /etc/kubernetes/admin.conf
+
+# - name: Set control plane join command
+#   set_fact:
+#     control_plane_join_command: "{{ join_command.stdout }} --control-plane --certificate-key {{ certs_command.stdout_lines[-1] }}"
+
+---
+- name: Initialize Kubernetes cluster
+  command: kubeadm init --control-plane-endpoint "{{ groups.masters[0] }}:6443" --pod-network-cidr=10.244.0.0/16 --upload-certs
+  become: true
+  register: init_output
+  args:
+    creates: /etc/kubernetes/admin.conf
+
+- name: Create .kube directory for ubuntu user
+  file:
+    path: /home/ubuntu/.kube
+    state: directory
+    owner: ubuntu
+    group: ubuntu
+
+- name: Copy admin config to user directory
+  copy:
+    src: /etc/kubernetes/admin.conf
+    dest: /home/ubuntu/.kube/config
+    remote_src: yes
+    owner: ubuntu
+    group: ubuntu
+
+- name: Get join command for workers (with kubeconfig)
+  command: kubeadm token create --print-join-command --kubeconfig=/etc/kubernetes/admin.conf
+  become: true
+  register: join_command
+  run_once: true
+  delegate_to: "{{ groups['masters'][0] }}"
+
+- name: Set join command fact for workers
+  set_fact:
+    worker_join_command: "{{ join_command.stdout }}"
+
+- name: Generate certificate key for control plane
+  command: kubeadm init phase upload-certs --upload-certs --kubeconfig=/etc/kubernetes/admin.conf
+  become: true
+  register: cert_key
+  run_once: true
+  delegate_to: "{{ groups['masters'][0] }}"
+
+
+- name: Extract certificate key
+  set_fact:
+    certificate_key: "{{ cert_key.stdout | regex_search('([A-Fa-f0-9]{32,})') }}"
+
+- name: Set control plane join command
+  set_fact:
+    control_plane_join_command: "{{ join_command.stdout }} --control-plane --certificate-key {{ certificate_key }}"
