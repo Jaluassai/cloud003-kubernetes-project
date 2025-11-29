@@ -1,5 +1,5 @@
 ---
-- name: Add self hostname to /etc/hosts
+- name: Add local hostname to /etc/hosts
   lineinfile:
     path: /etc/hosts
     line: "{{ ansible_default_ipv4.address }} {{ inventory_hostname }} {{ inventory_hostname_short }}"
@@ -11,6 +11,7 @@
     line: "{{ hostvars[groups['masters'][0]].ansible_default_ipv4.address }} {{ groups['masters'][0] }} {{ hostvars[groups['masters'][0]].inventory_hostname_short }}"
     state: present
 
+    # --- Swap management ---
 - name: Check if fstab exists
   stat:
     path: /etc/fstab"
@@ -19,7 +20,7 @@
     get_mime: false
   register: fstab_file
 
-- name: Remove swap from fstab
+- name: Remove swap entries from fstab
   ansible.posix.mount:
     name: "{{ item }}"
     fstype: swap
@@ -37,7 +38,8 @@
 - name: Disable swap
   command: /sbin/swapoff -a
 
-- name: Load kernel modules
+    # --- Kernel modules ---
+- name: Load required kernel modules
   modprobe:
     name: "{{ item }}"
     state: present
@@ -45,7 +47,8 @@
     - overlay
     - br_netfilter
 
-- name: Create sysctl configuration
+    # --- Sysctl settings ---
+- name: Configure sysctl for Kubernetes networking
   copy:
     dest: /etc/sysctl.d/99-kubernetes.conf
     content: |
@@ -54,7 +57,8 @@
       net.ipv4.ip_forward = 1
   notify: apply sysctl
 
-- name: Install required packages
+    # --- Install dependencies ---
+- name: Install required system packages
   apt:
     name:
       - apt-transport-https
@@ -65,32 +69,32 @@
     state: present
     update_cache: yes
 
-- name: Add Kubernetes GPG key (modern approach)
-  become: yes
+    # --- Repositories & GPG keys ---
+- name: Add Kubernetes GPG key
   apt_key:
     url: https://pkgs.k8s.io/core:/stable:/v1.34/deb/Release.key
     keyring: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
     state: present
 
-- name: Download Docker GPG key (modern ASC format)
+- name: Add Docker GPG key
   ansible.builtin.get_url:
     url: https://download.docker.com/linux/ubuntu/gpg
     dest: /etc/apt/keyrings/docker.asc
     mode: '0644'
 
-- name: Add Docker repository (correct for Ubuntu Noble)
+- name: Add Docker repository
   ansible.builtin.apt_repository:
     repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu noble stable"
     filename: docker
     state: present
 
 - name: Add Kubernetes repository
-  become: yes
   apt_repository:
     repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.34/deb/ /"
     state: present
     filename: kubernetes
 
+# --- Install container runtime and Kubernetes ---
 - name: Install Docker and containerd
   apt:
     name:
@@ -115,7 +119,7 @@
 #               SystemdCgroup = true
 #   notify: restart containerd
 
-- name: Configure containerd 2.x
+- name: Configure containerd 2.x with systemd cgroup driver
   copy:
     dest: /etc/containerd/config.toml
     content: |
@@ -128,7 +132,7 @@
             SystemdCgroup = true
   notify: restart containerd
 
-- name: Install Kubernetes components
+- name: Install Kubernetes components (kubelet, kubeadm, kubectl)
   apt:
     name:
       - kubelet=1.34.*
@@ -137,7 +141,7 @@
     state: present
     update_cache: yes
 
-- name: Hold Kubernetes packages
+- name: Hold Kubernetes packages to prevent automatic upgrades
   dpkg_selections:
     name: "{{ item }}"
     selection: hold
@@ -146,9 +150,11 @@
     - kubeadm
     - kubectl
 
-- name: Enable and start services
+# --- Enable and start services ---
+- name: Enable and start Docker and containerd
   systemd:
     name: "{{ item }}"
+
     enabled: yes
     state: started
   loop:
