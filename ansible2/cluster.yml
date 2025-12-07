@@ -3,26 +3,14 @@
   hosts: all
   become: yes
 
-  pre_tasks:
-    - name: Unhold Kubernetes packages
-      command: "apt-mark unhold {{ item }}"
-      ignore_errors: yes
-      loop:
-        - kubelet
-        - kubeadm
-        - kubectl
-
   roles:
     - common
 
-  post_tasks:
-    - name: Hold Kubernetes packages after install
-      command: "apt-mark hold {{ item }}"
-      ignore_errors: yes
-      loop:
-        - kubelet
-        - kubeadm
-        - kubectl
+- name: Configure HA loadbalancer and VIP on masters
+  hosts: masters
+  become: yes
+  roles:
+    - ha
 
 - name: Initialize first master
   hosts: masters[0]
@@ -42,25 +30,12 @@
   roles:
     - join-worker
 
-- name: Deploy CNI
-  hosts: masters[0]
+- name: Install Calico CNI
+  hosts: masters
   become: yes
   tasks:
-    - name: Install Flannel CNI
-      command: kubectl apply -f https://raw.githubusercontent.com/flannel-io/flannel/master/Documentation/kube-flannel.yml
+    - name: Install Calico CNI
+      command: kubectl apply -f https://docs.projectcalico.org/manifests/calico.yaml
       environment:
         KUBECONFIG: /etc/kubernetes/admin.conf
-
-# - name: Validate cluster
-#   hosts: masters[0]
-#   tasks:
-#     - name: Check node status
-#       become: yes
-#       command: kubectl get nodes
-#       register: node_status
-      
-#     - name: Display node status
-#       become: yes
-#       debug:
-#         var: node_status.stdout
 

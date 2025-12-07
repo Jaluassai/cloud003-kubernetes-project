@@ -1,162 +1,203 @@
----
-- name: Add local hostname to /etc/hosts
-  lineinfile:
-    path: /etc/hosts
-    line: "{{ ansible_default_ipv4.address }} {{ inventory_hostname }} {{ inventory_hostname_short }}"
-    state: present
+# ---
+# - name: Add local host into /etc/hosts
+#   lineinfile:
+#     path: /etc/hosts
+#     line: "{{ ansible_default_ipv4.address }} {{ inventory_hostname }}"
+#     state: present
 
-- name: Add control plane hostname to /etc/hosts
-  lineinfile:
-    path: /etc/hosts
-    line: "{{ hostvars[groups['masters'][0]].ansible_default_ipv4.address }} {{ groups['masters'][0] }} {{ hostvars[groups['masters'][0]].inventory_hostname_short }}"
-    state: present
+# - name: Add VIP to /etc/hosts
+#   lineinfile:
+#     path: /etc/hosts
+#     line: "{{ control_plane_vip }} apiserver-vip"
+#     state: present
 
-    # --- Swap management ---
-- name: Check if fstab exists
-  stat:
-    path: /etc/fstab"
-    get_attributes: false
-    get_checksum: false
-    get_mime: false
-  register: fstab_file
+# # Disable swap
+# - name: Disable swap
+#   command: swapoff -a
 
-- name: Remove swap entries from fstab
-  ansible.posix.mount:
-    name: "{{ item }}"
-    fstype: swap
-    state: absent
-  loop:
-    - swap
-    - none
-  when: fstab_file.stat.exists
+# - name: Remove swap from fstab
+#   replace:
+#     path: /etc/fstab
+#     regexp: '^(.*swap.*)$'
+#     replace: '# \1'
 
-- name: Mask swap.target
-  ansible.builtin.systemd_service:
-    name: swap.target
-    masked: true
+# # Kernel mods
+# - name: Load required kernel modules
+#   modprobe:
+#     name: "{{ item }}"
+#   loop:
+#     - overlay
+#     - br_netfilter
 
-- name: Disable swap
-  command: /sbin/swapoff -a
+# - name: Sysctl settings
+#   copy:
+#     dest: /etc/sysctl.d/99-kubernetes.conf
+#     content: |
+#       net.bridge.bridge-nf-call-iptables = 1
+#       net.ipv4.ip_forward = 1
 
-    # --- Kernel modules ---
-- name: Load required kernel modules
-  modprobe:
-    name: "{{ item }}"
-    state: present
-  loop:
-    - overlay
-    - br_netfilter
+# - name: Apply sysctl
+#   command: sysctl --system
 
-    # --- Sysctl settings ---
-- name: Configure sysctl for Kubernetes networking
-  copy:
-    dest: /etc/sysctl.d/99-kubernetes.conf
-    content: |
-      net.bridge.bridge-nf-call-iptables = 1
-      net.bridge.bridge-nf-call-ip6tables = 1
-      net.ipv4.ip_forward = 1
-  notify: apply sysctl
+# # Packages
+# - name: Install dependencies
+#   apt:
+#     name:
+#       - curl
+#       - apt-transport-https
+#       - ca-certificates
+#       - gnupg
+#     update_cache: yes
 
-    # --- Install dependencies ---
-- name: Install required system packages
-  apt:
-    name:
-      - apt-transport-https
-      - ca-certificates
-      - curl
-      - gnupg
-      - software-properties-common
-    state: present
-    update_cache: yes
+# # Kubernetes repo
+# - name: Add Kubernetes apt key
+#   apt_key:
+#     url: https://pkgs.k8s.io/core:/stable:/v1.34/deb/Release.key
+#     keyring: /etc/apt/keyrings/kubernetes.gpg
 
-    # --- Repositories & GPG keys ---
-- name: Add Kubernetes GPG key
-  apt_key:
-    url: https://pkgs.k8s.io/core:/stable:/v1.34/deb/Release.key
-    keyring: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
-    state: present
+# - name: Add Kubernetes apt repo
+#   apt_repository:
+#     repo: "deb [signed-by=/etc/apt/keyrings/kubernetes.gpg] https://pkgs.k8s.io/core:/stable:/v1.34/deb/ /"
+#     state: present
 
-- name: Add Docker GPG key
-  ansible.builtin.get_url:
-    url: https://download.docker.com/linux/ubuntu/gpg
-    dest: /etc/apt/keyrings/docker.asc
-    mode: '0644'
+# # containerd
+# - name: Install containerd
+#   apt:
+#     name: containerd
+#     state: present
+#     update_cache: yes
 
-- name: Add Docker repository
-  ansible.builtin.apt_repository:
-    repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu noble stable"
-    filename: docker
-    state: present
+# - name: Create containerd directory
+#   file:
+#     path: /etc/containerd
+#     state: directory
+#     mode: '0755'
 
-- name: Add Kubernetes repository
-  apt_repository:
-    repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.34/deb/ /"
-    state: present
-    filename: kubernetes
+# # Generate default config
+# - name: Generate default containerd config
+#   command: containerd config default
+#   register: containerd_default_config
 
-# --- Install container runtime and Kubernetes ---
-- name: Install Docker and containerd
-  apt:
-    name:
-      - docker-ce
-      - docker-ce-cli
-      - containerd.io
-      - docker-buildx-plugin
-      - docker-compose-plugin
-    state: present
-
-# - name: Configure containerd
+# - name: Configure containerd cgroup driver
 #   copy:
 #     dest: /etc/containerd/config.toml
 #     content: |
 #       version = 2
-#       [plugins."io.containerd.grpc.v1.cri"]
-#         [plugins."io.containerd.grpc.v1.cri".containerd]
-#           discard_unpacked_layers = true
-#           [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc]
-#             runtime_type = "io.containerd.runc.v2"
-#             [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc.options]
-#               SystemdCgroup = true
-#   notify: restart containerd
+#       [plugins."io.containerd.cri.v1.runtime".containerd.runtimes.runc.options]
+#         SystemdCgroup = true
 
-- name: Configure containerd 2.x with systemd cgroup driver
+# - name: Restart containerd
+#   systemd:
+#     name: containerd
+#     state: restarted
+#     enabled: yes
+
+# # Kubernetes pkgs
+# - name: Install Kubernetes components
+#   apt:
+#     name:
+#       - kubelet
+#       - kubeadm
+#       - kubectl
+#     state: present
+
+
+---
+- name: Add local host into /etc/hosts
+  lineinfile:
+    path: /etc/hosts
+    line: "{{ ansible_default_ipv4.address }} {{ inventory_hostname }}"
+    state: present
+
+- name: Add VIP to /etc/hosts
+  lineinfile:
+    path: /etc/hosts
+    line: "{{ control_plane_vip }} apiserver-vip"
+    state: present
+
+- name: Disable swap
+  command: swapoff -a
+
+- name: Remove swap from fstab
+  replace:
+    path: /etc/fstab
+    regexp: '^(.*swap.*)$'
+    replace: '# \1'
+
+- name: Load required kernel modules
+  modprobe:
+    name: "{{ item }}"
+  loop:
+    - overlay
+    - br_netfilter
+
+- name: Sysctl settings
   copy:
-    dest: /etc/containerd/config.toml
+    dest: /etc/sysctl.d/99-kubernetes.conf
     content: |
-      version = 2
+      net.bridge.bridge-nf-call-iptables = 1
+      net.ipv4.ip_forward = 1
 
-      [plugins."io.containerd.cri.v1.runtime"]
-        [plugins."io.containerd.cri.v1.runtime".containerd.runtimes.runc]
-          runtime_type = "io.containerd.runc.v2"
-          [plugins."io.containerd.cri.v1.runtime".containerd.runtimes.runc.options]
-            SystemdCgroup = true
-  notify: restart containerd
+- name: Apply sysctl
+  command: sysctl --system
 
-- name: Install Kubernetes components (kubelet, kubeadm, kubectl)
+- name: Install dependencies
   apt:
     name:
-      - kubelet=1.34.*
-      - kubeadm=1.34.*
-      - kubectl=1.34.*
+      - curl
+      - apt-transport-https
+      - ca-certificates
+      - gnupg
+    update_cache: yes
+
+- name: Add Kubernetes apt key
+  apt_key:
+    url: https://pkgs.k8s.io/core:/stable:/v1.34/deb/Release.key
+    keyring: /etc/apt/keyrings/kubernetes.gpg
+
+- name: Add Kubernetes apt repo
+  apt_repository:
+    repo: "deb [signed-by=/etc/apt/keyrings/kubernetes.gpg] https://pkgs.k8s.io/core:/stable:/v1.34/deb/ /"
+    state: present
+
+- name: Install containerd
+  apt:
+    name: containerd
     state: present
     update_cache: yes
 
-- name: Hold Kubernetes packages to prevent automatic upgrades
-  dpkg_selections:
-    name: "{{ item }}"
-    selection: hold
-  loop:
-    - kubelet
-    - kubeadm
-    - kubectl
+- name: Create containerd directory
+  file:
+    path: /etc/containerd
+    state: directory
+    mode: '0755'
 
-# --- Enable and start services ---
-- name: Enable and start Docker and containerd
+- name: Generate default containerd config
+  command: containerd config default
+  register: containerd_default_config
+  changed_when: false
+
+- name: Write default containerd config
+  copy:
+    dest: /etc/containerd/config.toml
+    content: "{{ containerd_default_config.stdout }}"
+
+- name: Ensure SystemdCgroup true
+  lineinfile:
+    path: /etc/containerd/config.toml
+    regexp: 'SystemdCgroup = .*'
+    line: '            SystemdCgroup = true'
+
+- name: Restart containerd
   systemd:
-    name: "{{ item }}"
-
+    name: containerd
+    state: restarted
     enabled: yes
-    state: started
-  loop:
-    - docker
-    - containerd
+
+- name: Install Kubernetes components
+  apt:
+    name:
+      - kubelet
+      - kubeadm
+      - kubectl
+    state: present

@@ -1,5 +1,0 @@
----
-- name: Join worker to cluster
-  command: "{{ hostvars[ groups['masters'][0] ].worker_join_command }}"
-  args:
-    creates: /var/lib/kubelet/config.yaml

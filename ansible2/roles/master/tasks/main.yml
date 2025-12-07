@@ -1,93 +1,162 @@
 # ---
-# - name: Initialize Kubernetes cluster
-#   command: kubeadm init --control-plane-endpoint "{{ groups.masters[0] }}:6443" --pod-network-cidr=10.244.0.0/16 --upload-certs
-#   become: true
+# - name: Wait for VIP
+#   shell: "ip -4 addr show {{ vip_interface }} | grep {{ control_plane_vip }}"
+#   register: vip
+#   retries: 20
+#   delay: 3
+#   until: vip.rc == 0
+
+# - name: Initialize cluster
+#   command: >
+#     kubeadm init
+#     --control-plane-endpoint "{{ control_plane_endpoint }}"
+#     --pod-network-cidr="{{ pod_network_cidr }}"
+#     --upload-certs
 #   register: init_output
 #   args:
 #     creates: /etc/kubernetes/admin.conf
 
-# - name: Create .kube directory for ubuntu user
+# #    --control-plane-endpoint "192.168.100.169:8443"
+# # Kubeconfig
+# - name: Create .kube for ubuntu
 #   file:
 #     path: /home/ubuntu/.kube
 #     state: directory
 #     owner: ubuntu
-#     group: ubuntu
 
-# - name: Copy admin config to user directory
+# - name: Copy kubeconfig
 #   copy:
 #     src: /etc/kubernetes/admin.conf
 #     dest: /home/ubuntu/.kube/config
-#     remote_src: yes
 #     owner: ubuntu
 #     group: ubuntu
+#     mode: 0644
+#     remote_src: yes
 
-# - name: Get join command for workers
-#   command: kubeadm token create --print-join-command
-#   become: true
-#   register: join_command
+# # # Extract join commands
+# # - name: Extract control-plane join command
+# #   set_fact:
+# #     control_plane_join_command: "{{ init_output.stdout_lines | select('search', 'kubeadm join') | list | first }} --control-plane --certificate-key {{ init_output.stdout_lines | select('search','certificate-key') | list | first | regex_replace('.*: ', '') }}"
+
+# # - name: Extract worker join command
+# #   set_fact:
+# #     worker_join_command: "{{ init_output.stdout_lines | select('search', 'kubeadm join') | list | last }}"
+# # Extract control-plane join command (clean way)
+
+# - name: Debug kubeadm init output
+#   debug:
+#     var: init_output.stdout_lines
+
+
+# # Generate new token and base worker join command
+# - name: Generate worker join command
+#   shell: kubeadm token create --print-join-command
+#   register: token_join
 #   environment:
 #     KUBECONFIG: /etc/kubernetes/admin.conf
+#   run_once: true
+#   delegate_to: "{{ groups['masters'][0] }}"
 
-# - name: Set join command fact for workers
+# - name: Save worker join command (GLOBAL)
 #   set_fact:
-#     worker_join_command: "{{ join_command.stdout }}"
+#     worker_join_command: "{{ token_join.stdout | trim }}"
+#   run_once: true
+#   delegate_to: "{{ groups['masters'][0] }}"
+#   delegate_facts: true
 
-# - name: Get join command for control plane
-#   command: kubeadm init phase upload-certs --upload-certs
-#   register: certs_command
+# # Re-upload certs to get certificate key
+# - name: Re-upload certs
+#   shell: kubeadm init phase upload-certs --upload-certs
+#   register: upload_certs
 #   environment:
 #     KUBECONFIG: /etc/kubernetes/admin.conf
+#   run_once: true
+#   delegate_to: "{{ groups['masters'][0] }}"
 
-# - name: Set control plane join command
+# - name: Save certificate key (GLOBAL)
 #   set_fact:
-#     control_plane_join_command: "{{ join_command.stdout }} --control-plane --certificate-key {{ certs_command.stdout_lines[-1] }}"
+#     certificate_key: "{{ upload_certs.stdout_lines[-1] | trim }}"
+#   run_once: true
+#   delegate_to: "{{ groups['masters'][0] }}"
+#   delegate_facts: true
+
+# - name: Build control-plane join command (GLOBAL)
+#   set_fact:
+#     control_plane_join_command: >-
+#       {{ token_join.stdout | trim }}
+#       --control-plane --certificate-key {{ certificate_key }}
+#   run_once: true
+#   delegate_to: "{{ groups['masters'][0] }}"
+#   delegate_facts: true
 
 ---
-- name: Initialize Kubernetes cluster
-  command: kubeadm init --control-plane-endpoint "{{ groups.masters[0] }}:6443" --pod-network-cidr=10.244.0.0/16 --upload-certs
-  become: true
+- name: Initialize cluster
+  command: >
+    kubeadm init
+    --control-plane-endpoint "{{ control_plane_endpoint }}"
+    --pod-network-cidr=192.168.0.0/16
+    --upload-certs
   register: init_output
   args:
     creates: /etc/kubernetes/admin.conf
 
-- name: Create .kube directory for ubuntu user
+- name: Create .kube for ubuntu
   file:
     path: /home/ubuntu/.kube
     state: directory
     owner: ubuntu
-    group: ubuntu
 
-- name: Copy admin config to user directory
+- name: Copy kubeconfig
   copy:
     src: /etc/kubernetes/admin.conf
     dest: /home/ubuntu/.kube/config
-    remote_src: yes
     owner: ubuntu
     group: ubuntu
+    mode: 0644
+    remote_src: yes
 
-- name: Get join command for workers (with kubeconfig)
-  command: kubeadm token create --print-join-command --kubeconfig=/etc/kubernetes/admin.conf
-  become: true
-  register: join_command
+# - name: Generate worker join command
+#   shell: kubeadm token create --print-join-command
+#   register: token_join
+#   environment:
+#     KUBECONFIG: /etc/kubernetes/admin.conf
+#   run_once: true
+#   delegate_to: "{{ inventory_hostname }}"
+- name: Generate worker join command
+  shell: kubeadm token create --print-join-command
+  register: token_join
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
   run_once: true
   delegate_to: "{{ groups['masters'][0] }}"
 
-- name: Set join command fact for workers
-  set_fact:
-    worker_join_command: "{{ join_command.stdout }}"
+- name: Re-upload certs
+  shell: kubeadm init phase upload-certs --upload-certs
+  register: upload_certs
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  run_once: true
+  delegate_to: "{{ inventory_hostname }}"
 
-- name: Generate certificate key for control plane
-  command: kubeadm init phase upload-certs --upload-certs --kubeconfig=/etc/kubernetes/admin.conf
-  become: true
-  register: cert_key
+- name: Save certificate key (GLOBAL)
+  set_fact:
+    certificate_key: "{{ upload_certs.stdout_lines[-1] | trim | regex_replace('\\[|\\]', '') }}"
+  run_once: true
+  delegate_to: "{{ inventory_hostname }}"
+  delegate_facts: true
+
+- name: Build control-plane join command (GLOBAL)
+  set_fact:
+    control_plane_join_command: >-
+      {{ token_join.stdout | trim }}
+      --control-plane --certificate-key {{ certificate_key }}
+  run_once: true
+  delegate_to: "{{ inventory_hostname }}"
+  delegate_facts: true
+
+- name: Build worker join command (GLOBAL)
+  set_fact:
+    worker_join_command: "{{ token_join.stdout | trim }}"
   run_once: true
   delegate_to: "{{ groups['masters'][0] }}"
-
-
-- name: Extract certificate key
-  set_fact:
-    certificate_key: "{{ cert_key.stdout | regex_search('([A-Fa-f0-9]{32,})') }}"
-
-- name: Set control plane join command
-  set_fact:
-    control_plane_join_command: "{{ join_command.stdout }} --control-plane --certificate-key {{ certificate_key }}"
+  delegate_facts: true

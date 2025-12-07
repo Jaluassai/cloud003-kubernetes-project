@@ -1,0 +1,9 @@
+---
+# VIP i interfejs
+control_plane_vip: "192.168.100.169"
+vip_interface: "eth0"
+
+# konfiguracja LB
+haproxy_listen_port: 6443
+haproxy_backend_port: 6443
+keepalived_router_id: 51
