@@ -1,0 +1,4 @@
+kubectl run --rm -it curl --image=curlimages/curl -- \
+  sh -c 'curl -s --max-time 3 http://cartservice:7070 >/dev/null \
+  && echo -e "\033[32mOK — connection allowed\033[0m" \
+  || echo -e "\033[31mBLOCKED — NetworkPolicy working!\033[0m"'
