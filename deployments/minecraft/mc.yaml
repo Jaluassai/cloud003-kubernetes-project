@@ -1,0 +1,56 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: mc-pv
+spec:
+  capacity:
+    storage: 2Gi
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: /mnt/data/minecraft
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mc-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: minecraft
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: minecraft
+  template:
+    metadata:
+      labels:
+        app: minecraft
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: hera-worker-1
+      containers:
+      - name: minecraft
+        image: itzg/minecraft-server
+        env:
+        - name: EULA
+          value: "TRUE"
+        - name: ONLINE_MODE
+          value: "FALSE"
+        ports:
+        - containerPort: 25565
+        volumeMounts:
+        - mountPath: /data
+          name: mc-storage
+      volumes:
+      - name: mc-storage
+        persistentVolumeClaim:
+          claimName: mc-pvc
