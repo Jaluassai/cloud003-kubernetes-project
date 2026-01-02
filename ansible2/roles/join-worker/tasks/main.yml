@@ -1,5 +1,0 @@
----
-- name: Join worker node
-  command: "{{ hostvars[groups['masters'][0]].worker_join_command }}"
-  args:
-    creates: /var/lib/kubelet/kubeadm-flags.env
