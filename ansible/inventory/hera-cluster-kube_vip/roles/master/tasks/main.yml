@@ -1,0 +1,64 @@
+---
+- name: Initialize cluster
+  become: true
+  command: >
+    kubeadm init
+      --apiserver-advertise-address 192.168.100.141
+      --control-plane-endpoint 192.168.100.141:6443
+      --pod-network-cidr={{ pod_network_cidr | default('192.168.0.0/16') }}
+      --upload-certs
+  register: init_output
+
+- name: Create .kube for ubuntu
+  file:
+    path: /home/ubuntu/.kube
+    state: directory
+    owner: ubuntu
+
+- name: Copy kubeconfig
+  copy:
+    src: /etc/kubernetes/admin.conf
+    dest: /home/ubuntu/.kube/config
+    owner: ubuntu
+    group: ubuntu
+    mode: 0644
+    remote_src: yes
+
+- name: Generate worker join command
+  shell: kubeadm token create --print-join-command
+  register: token_join
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  run_once: true
+  delegate_to: "{{ groups['masters'][0] }}"
+
+- name: Re-upload certs
+  shell: kubeadm init phase upload-certs --upload-certs
+  register: upload_certs
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  run_once: true
+  delegate_to: "{{ inventory_hostname }}"
+
+- name: Save certificate key (GLOBAL)
+  set_fact:
+    certificate_key: "{{ upload_certs.stdout_lines[-1] | trim | regex_replace('\\[|\\]', '') }}"
+  run_once: true
+  delegate_to: "{{ inventory_hostname }}"
+  delegate_facts: true
+
+- name: Build control-plane join command (GLOBAL)
+  set_fact:
+    control_plane_join_command: >-
+      {{ token_join.stdout | trim }}
+      --control-plane --certificate-key {{ certificate_key }}
+  run_once: true
+  delegate_to: "{{ inventory_hostname }}"
+  delegate_facts: true
+
+- name: Build worker join command (GLOBAL)
+  set_fact:
+    worker_join_command: "{{ token_join.stdout | trim }}"
+  run_once: true
+  delegate_to: "{{ groups['masters'][0] }}"
+  delegate_facts: true

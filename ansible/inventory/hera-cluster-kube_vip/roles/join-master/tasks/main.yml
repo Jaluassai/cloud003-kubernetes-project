@@ -1,0 +1,32 @@
+---
+# - name: Join control plane
+#   command: "{{ hostvars[groups['masters'][0]].control_plane_join_command }}"
+#   args:
+#     creates: /etc/kubernetes/admin.conf
+
+- name: Check if node is already joined
+  stat:
+    path: /etc/kubernetes/kubelet.conf
+  register: kubelet_conf
+
+- name: Join control plane
+  command: "{{ hostvars[groups['masters'][0]].control_plane_join_command }}"
+  when: not kubelet_conf.stat.exists
+
+
+- name: Create .kube directory for ubuntu
+  file:
+    path: /home/ubuntu/.kube
+    state: directory
+    owner: ubuntu
+    group: ubuntu
+
+- name: Copy kubeconfig from /etc/kubernetes/admin.conf
+  copy:
+    src: /etc/kubernetes/admin.conf
+    dest: /home/ubuntu/.kube/config
+    owner: ubuntu
+    group: ubuntu
+    mode: 0644
+    remote_src: yes
+    force: yes

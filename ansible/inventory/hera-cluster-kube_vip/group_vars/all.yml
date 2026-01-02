@@ -1,0 +1,5 @@
+control_plane_vip: "192.168.100.169"
+vip_interface: "eth0"
+control_plane_endpoint: "{{ control_plane_vip }}:6443"
+pod_network_cidr: "192.168.0.0/16"
+kube_vip_version: "v1.0.2"

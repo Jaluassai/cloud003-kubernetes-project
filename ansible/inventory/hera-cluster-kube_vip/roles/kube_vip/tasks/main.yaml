@@ -1,0 +1,28 @@
+- name: Ensure static manifests directory exists
+  become: true
+  file:
+    path: /etc/kubernetes/manifests
+    state: directory
+    mode: '0755'
+
+- name: Pull kube-vip image (containerd)
+  become: true
+  command: >
+    /usr/bin/ctr image pull ghcr.io/kube-vip/kube-vip:v1.0.2
+  changed_when: false
+
+- name: Generate kube-vip static Pod manifest
+  become: true
+  shell: |
+    /usr/bin/ctr run --rm --net-host \
+      ghcr.io/kube-vip/kube-vip:v1.0.2 vip /kube-vip \
+      manifest pod \
+      --interface {{ vip_interface }} \
+      --address {{ control_plane_vip }} \
+      --controlplane \
+      --services \
+      --arp \
+      --leaderElection \
+      > /etc/kubernetes/manifests/kube-vip.yaml
+  args:
+    creates: /etc/kubernetes/manifests/kube-vip.yaml
