@@ -1,0 +1,61 @@
+---
+- name: Install HAProxy and Keepalived
+  apt:
+    name:
+      - haproxy
+      - keepalived
+    state: present
+    update_cache: yes
+
+- name: Configure haproxy
+  template:
+    src: haproxy.cfg.j2
+    dest: /etc/haproxy/haproxy.cfg
+
+- name: Disable Keepalived default config
+  file:
+    path: /etc/keepalived/keepalived.conf
+    state: absent
+
+- name: Configure keepalived
+  template:
+    src: keepalived.conf.j2
+    dest: /etc/keepalived/keepalived.conf
+
+# - name: Wait for VIP only on first master
+#   shell: "ip -4 addr show {{ vip_interface }} | grep {{ control_plane_vip }}"
+#   register: vip
+#   retries: 20
+#   delay: 3
+#   until: vip.rc == 0
+#   run_once: true
+#   delegate_to: "{{ groups['masters'][0] }}"
+
+### --- ### ZOBACZ JAK TO WYGLĄDA NA gotowej infrze
+
+# - name: Create systemd override directory for haproxy
+#   file:
+#     path: /etc/systemd/system/haproxy.service.d
+#     state: directory
+#     mode: '0755'
+
+# - name: Add systemd override for haproxy to wait for keepalived
+#   copy:
+#     dest: /etc/systemd/system/haproxy.service.d/override.conf
+#     content: |
+#       [Unit]
+#       Requires=keepalived.service
+#       After=keepalived.service
+#   notify:
+#     - reload systemd
+#     - restart haproxy
+### --- ###
+
+- name: Enable and start services
+  systemd:
+    name: "{{ item }}"
+    enabled: yes
+    state: started
+  loop:
+    - keepalived
+    - haproxy

@@ -1,0 +1,25 @@
+# control_plane_vip: "192.168.100.169"
+# vip_interface: "eth0"
+# # control_plane_endpoint: "apiserver-vip:6443"
+# # haproxy_listen_port: 6443
+# # haproxy_backend_port: 6443
+# haproxy_listen_port: 8443
+# control_plane_endpoint: "192.168.100.169:8443"
+
+
+# control_plane_vip: "192.168.100.169"
+# vip_interface: "eth0"
+# # control_plane_endpoint: "apiserver-vip:6443"
+# # haproxy_listen_port: 6443
+# haproxy_backend_port: 6443
+# haproxy_listen_port: 8443
+# control_plane_endpoint: "{{ control_plane_vip }}:{{ haproxy_listen_port }}"
+# pod_network_cidr: "192.168.0.0/16"
+
+control_plane_vip: "192.168.100.169"
+vip_interface: "eth0"
+control_plane_endpoint: "192.168.100.169:6443"
+haproxy_listen_port: 6443
+haproxy_backend_port: 6443
+pod_network_cidr: "192.168.0.0/16"
+keepalived_router_id: 51

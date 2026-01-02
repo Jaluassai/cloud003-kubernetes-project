@@ -1,0 +1,41 @@
+---
+- name: Configure all nodes
+  hosts: all
+  become: yes
+
+  roles:
+    - common
+
+- name: Configure HA loadbalancer and VIP on masters
+  hosts: masters
+  become: yes
+  roles:
+    - ha
+
+- name: Initialize first master
+  hosts: masters[0]
+  become: yes
+  roles:
+    - master
+
+- name: Join remaining control plane nodes
+  hosts: masters[1:]
+  become: yes
+  roles:
+    - join-master
+
+- name: Join worker nodes
+  hosts: workers
+  become: yes
+  roles:
+    - join-worker
+
+- name: Install Calico CNI
+  hosts: masters[0]
+  become: yes
+  tasks:
+    - name: Install Calico CNI
+      command: kubectl apply -f https://docs.projectcalico.org/manifests/calico.yaml
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+
