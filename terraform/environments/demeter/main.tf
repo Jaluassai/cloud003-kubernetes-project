@@ -27,6 +27,7 @@ module "vms" {
 # Worker nodes
 module "worker_vms" {
   source = "../../modules/vm"
+  depends_on = [module.vms]
 
   environment     = "demeter"
   vm_count        = 3
